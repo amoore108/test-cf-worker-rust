@@ -1,42 +1,48 @@
-use serde::Serialize;
-use serde_json::json;
-use std::env::consts;
+use leptos::*;
 use worker::*;
 
-mod utils;
-#[derive(Serialize)]
-struct SysInfo<'a> {
-    arch: &'a str,
-    os: &'a str,
+#[component]
+pub fn SimpleCounter(cx: Scope, req: Request) -> impl IntoView {
+    let coords = req.cf().coordinates().unwrap();
+    let postcode = req.cf().postal_code().unwrap();
+    let city = req.cf().city().unwrap();
+    let region = req.cf().region().unwrap_or_else(|| "unknown region".into());
+
+    view! { cx,
+        <div>
+            <table>
+            <tr>
+              <th>"Coords"</th>
+              <th>"Postcode"</th>
+              <th>"City"</th>
+              <th>"Region"</th>
+            </tr>
+            <tr>
+              <td>{coords}</td>
+              <td>{postcode}</td>
+              <td>{city}</td>
+              <td>{region}</td>
+            </tr>
+            </table>
+        </div>
+    }
+}
+async fn get_endpoint(req: Request, _ctx: RouteContext<()>) -> Result<Response> {
+    // let kv = ctx.kv("KVSTORE")?;
+
+    // let test_val = kv.get("prevkey").text().await?.unwrap();
+
+    let html = leptos::ssr::render_to_string(|cx| {
+        view! {cx, <SimpleCounter req />
+        }
+    });
+
+    return Response::from_html(html);
 }
 
 #[event(fetch)]
-pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
-    utils::set_panic_hook();
-
+async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
     let router = Router::new();
 
-    router
-        .get_async("/", |req, ctx| async move {
-            let coords = req.cf().coordinates().unwrap();
-            let postcode = req.cf().postal_code().unwrap();
-            let city = req.cf().city().unwrap();
-
-            let region = req.cf().region().unwrap_or_else(|| "unknown region".into());
-
-            let kv = ctx.kv("KVSTORE")?;
-
-            let test_val = kv.get("prevkey").text().await?.unwrap();
-
-            let sys_info = SysInfo {
-                arch: consts::ARCH,
-                os: consts::OS
-            };
-
-            return Response::from_json(
-                &json!({ "coords": coords, "region": region, "postcode": postcode, "city": city, "kv": test_val, "sys_info": &json!(sys_info) }),
-            );
-        })
-        .run(req, env)
-        .await
+    router.get_async("/", get_endpoint).run(req, env).await
 }
